@@ -5,13 +5,13 @@ if ! command -v jar &> /dev/null; then
     exit 1
 fi
 
-if ! [[ -f "index.jsp" ]]; then
-    echo "[+] Renaming webshell.jsp to index.jsp"
-    cp webshell.jsp index.jsp
+if ! [[ -f "demo.jsp" ]]; then
+    echo "[+] Renaming webshell.jsp to demo.jsp"
+    cp webshell.jsp demo.jsp
 fi
 
 echo "[+] Bundeling webshell.war file:"
-jar -cvf webshell.war index.jsp &> /dev/null
+jar -cvf webshell.war demo.jsp &> /dev/null
 
 echo "[+] Removing index.jsp file"
-rm index.jsp
+rm demo.jsp

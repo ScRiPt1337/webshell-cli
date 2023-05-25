@@ -16,7 +16,11 @@ from prompt_toolkit.lexers import PygmentsLexer
 from pygments.lexers.shell import BashLexer, BatchLexer
 from prompt_toolkit.history import History, InMemoryHistory, FileHistory
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
-
+from http import cookiejar  # Python 2: import cookielib as cookiejar
+class BlockAll(cookiejar.CookiePolicy):
+    return_ok = set_ok = domain_return_ok = path_return_ok = lambda self, *args, **kwargs: False
+    netscape = True
+    rfc2965 = hide_cookie2 = False
 
 style = Style.from_dict({
     'username':   '#33cc33',
@@ -213,7 +217,7 @@ class Webshell:
     upload_action = 'upload'
     download_action = 'download'
 
-    def __init__(self, url: str, shell: str, pattern: str, username: str, password: str, headers: str) -> None:
+    def __init__(self, url: str, shell: str, pattern: str, username: str, password: str, headers: str,debug:str,block_cookie:str) -> None:
         '''
         Initializes a webshell object. The only really required parameter is
         the URL the webshell is reachable on. The shell parameter can be
@@ -239,10 +243,10 @@ class Webshell:
         self.type = None
         self.host = None
         self.path = None
-
+        self.debug = debug
         self.posix = None
         self.path_func = None
-
+        self.block_cookie = block_cookie
         self.pattern = pattern if pattern is not None else uuid.uuid4().hex
         self.regex = re.compile(
             re.escape(self.pattern) + '(.+)' + re.escape(self.pattern))
@@ -250,6 +254,8 @@ class Webshell:
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
         self.session = requests.Session()
+        if self.block_cookie:
+            self.session.cookies.set_policy(BlockAll())
         self.session.headers.update(
             {'User-Agent': 'Mozilla/5.0 (Linux; Android 11; 21061119AG Build/RP1A.200720.011; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/108.0.5359.128 Mobile Safari/537.36'})
         if username is not None and password is not None:
@@ -282,8 +288,11 @@ class Webshell:
             Webshell.action: Webshell.init_action,
             Webshell.pattern: self.pattern,
         }
-
+        if self.debug:
+            print(data)
         response = self.session.post(self.url, data=data, verify=False)
+        if self.debug:
+            print(response.text)
         result = self.get_response(response, 'init')
 
         sep, self.type, self.user, self.host, self.path = self.get_values(
@@ -404,10 +413,12 @@ class Webshell:
                 pass
 
         else:
-
+            if self.debug:
+                print(data)
             response = self.session.post(self.url, data=data, verify=False)
+            if self.debug:
+                print(response.text)
             result = self.get_response(response, 'issue_command')
-
             result, self.path = self.get_values(result, 2, True)
             return result
 
@@ -792,12 +803,18 @@ parser.add_argument('-u', '--username', metavar='user',
                     help='username for basic authentication')
 parser.add_argument('-p', '--password', metavar='pass',
                     help='password for basic authentication')
+parser.add_argument('-d', '--debug', metavar='debug',
+                    help='enable debug output (e.g. "-d true")')
+parser.add_argument('-b', '--block_cookie', metavar='bcookie',
+                    help='block all cookie (e.g. "-b true")')
 parser.add_argument('-H', '--header', metavar='header',
                     nargs='*', default=[], help='additional HTTP headers')
 
 args = parser.parse_args()
+# print(args)
 check_shell(args.shell)
-
+debug = False
+block_cookie = False
 try:
 
     if args.memory:
@@ -810,8 +827,12 @@ try:
         history = FileHistory(args.file_history)
 
     url = prepare_url(args.url)
+    if args.debug != None:
+        debug = True
+    if args.block_cookie != None:
+        block_cookie = True
     webshell = Webshell(url, args.shell, args.pattern,
-                        args.username, args.password, args.header)
+                        args.username, args.password, args.header,debug=debug,block_cookie=block_cookie)
     webshell.cmd_loop(history)
 
 except ServerError as e:
